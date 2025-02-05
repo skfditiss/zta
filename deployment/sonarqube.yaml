@@ -25,4 +25,4 @@ spec:
         - name: SONARQUBE_JDBC_USERNAME
           value: "sonar"
         - name: SONARQUBE_JDBC_PASSWORD
-          value: "sonar"
+          value: "sonarqube"
