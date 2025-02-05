@@ -1,0 +1,72 @@
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME = "skfditiss/zta-app"
+        IMAGE_TAG = "latest"
+        KUBE_NAMESPACE = "default"
+        CHART_NAME = "zta-app"
+    }
+
+    
+
+
+    stages {
+
+        stage('SonarQube Scan') {
+             steps {
+                withSonarQubeEnv('sonarqube-server') { // Configure SonarQube in Jenkins under "Manage Jenkins" → "Global Tool Configuration"
+                sh 'sonar-scanner -Dsonar.projectKey=zta-app -Dsonar.sources=. -Dsonar.host.url=http://sonarqube:9000'
+            }
+            }
+        }
+
+        stage('Clone Repository') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                }
+            }
+        }
+
+        stage('Trivy Security Scan') {
+            steps {
+                script {
+                    sh "trivy image ${IMAGE_NAME}:${IMAGE_TAG} || true"
+                }
+            }
+        }
+
+        
+        stage('Push to DockerHub') {
+            steps {
+                withDockerRegistry([credentialsId: 'dockerhub', url: '']) {
+                    sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes with Helm') {
+            steps {
+                script {
+                    sh "helm upgrade --install ${CHART_NAME} helm/ --namespace ${KUBE_NAMESPACE}"
+                }
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                script {
+                    sh "kubectl get pods -n ${KUBE_NAMESPACE}"
+                    sh "kubectl get svc -n ${KUBE_NAMESPACE}"
+                }
+            }
+        }
+    }
+}

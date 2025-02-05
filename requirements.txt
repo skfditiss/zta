@@ -1,0 +1,2 @@
+flask #Web framework for building the app.
+gunicorn #Production WSGI server for running the app in containers.

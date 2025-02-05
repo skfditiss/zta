@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: falco-config
+data:
+  falco_rules: |
+    # Sample Falco rules configuration
+    - rule: Host Process Running as Root
+      desc: Detects if a host process is running as root
+      condition: (evt.type = execve) and (proc.uid = 0)
+      output: "Host Process Running as Root: %proc.name%"
+      priority: WARNING
+      tags: [process, root]

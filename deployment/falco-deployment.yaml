@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: falco
+  labels:
+    app: falco
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: falco
+  template:
+    metadata:
+      labels:
+        app: falco
+    spec:
+      containers:
+      - name: falco
+        image: falcosecurity/falco:latest
+        securityContext:
+          privileged: true # Falco needs privileged mode to monitor system calls
+        volumeMounts:
+        - mountPath: /host
+          name: host
+          mountPropagation: Bidirectional
+      volumes:
+      - name: host
+        hostPath:
+          path: /
+          type: Directory
