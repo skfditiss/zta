@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: zta-app
+  name: zta
   labels:
     app: zta
 spec:
@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: zta-container
-        image: skfditiss/zta-app:latest # Replace with your actual image
+        image: skfditiss/zta:latest # Replace with your actual image
         ports:
         - containerPort: 5000
         resources:
