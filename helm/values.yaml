@@ -1,4 +1,4 @@
-replicaCount: 3
+replicaCount: 5
 
 image:
   repository: skfditiss/zta # Replace with your actual DockerHub username
