@@ -10,7 +10,7 @@ pipeline {
         PROMETHEUS_URL = "http://localhost:9090"
         GRAFANA_URL = "http://localhost:3000"
         GITHUB_CREDENTIALS_ID = "github"  // GitHub credentials ID
-        SONAR_SCANNER_HOME = '/opt/sonar-scanner'  // Path to SonarQube Scanner
+        SONAR_SCANNER_HOME = '/opt/sonar-scanner'  // Path to the SonarQube Scanner installation
         PATH = "${SONAR_SCANNER_HOME}/bin:${env.PATH}"  // Add sonar-scanner to PATH
         SONAR_TOKEN = "squ_0520eea0a041ee90b18e77560d944458471278c0"
     }
@@ -33,7 +33,9 @@ pipeline {
         stage('Verify File Existence') {
             steps {
                 script {
+                    // Verify the content of the 'deployment' directory inside 'zta'
                     sh 'ls -R ./zta/deployment'
+                    // Check the content of the 'sonarqube.yaml'
                     sh 'cat ./zta/deployment/sonarqube.yaml'
                 }
             }
@@ -42,21 +44,7 @@ pipeline {
         stage('Start Minikube') {
             steps {
                 script {
-                    // Check if Minikube is running
-                    def minikubeStatus = sh(script: "minikube status | grep 'host: Running' || echo 'stopped'", returnStdout: true).trim()
-
-                    if (minikubeStatus == 'stopped') {
-                        echo "Starting Minikube..."
-                        sh 'minikube start --driver=docker --memory=8000mb --cpus=3 --disk-size=20g'
-                    } else {
-                        echo "Minikube is already running."
-                    }
-
-                    // Ensure Minikube is using the correct Docker environment
-                    sh 'eval $(minikube docker-env)'
-
-                    // Output Minikube IP for external access
-                    sh 'echo "Minikube IP: $(minikube ip)"'
+                    sh 'minikube start --driver=docker'
                     sh 'kubectl config use-context minikube'
                 }
             }
@@ -73,10 +61,12 @@ pipeline {
         stage('SonarQube Scan') {
             steps {
                 script {
+                    // Apply the SonarQube YAML file with the correct path
                     sh 'kubectl apply -f ./zta/deployment/sonarqube.yaml'
                     sh 'kubectl apply -f ./zta/deployment/sonarqube-service.yaml'
 
                     withSonarQubeEnv('sonar') {
+                        //sh "sonar-scanner -Dsonar.projectKey=zta-app -Dsonar.sources=. -Dsonar.host.url=${SONARQUBE_URL}"
                         sh "sonar-scanner -Dsonar.projectKey=zta -Dsonar.sources=. -Dsonar.host.url=${SONARQUBE_URL} -Dsonar.login=${SONAR_TOKEN}"
                     }
                 }
@@ -102,42 +92,31 @@ pipeline {
         stage('Deploy to Kubernetes with Helm') {
             steps {
                 script {
-                    sh 'kubectl apply -f ./zta/deployment/zta-service.yaml'
+                    // Apply all the Kubernetes YAML files with the correct path
                     sh 'kubectl apply -f ./zta/deployment/prometheus-deployment.yaml'
                     sh 'kubectl apply -f ./zta/deployment/prometheus-service.yaml'
                     sh 'kubectl apply -f ./zta/deployment/prometheus-config.yaml'
                     sh 'kubectl apply -f ./zta/deployment/grafana-deployment.yaml'
                     sh 'kubectl apply -f ./zta/deployment/grafana-service.yaml'
                     sh 'kubectl apply -f ./zta/deployment/grafana-datasource.yaml'
+
                     sh 'kubectl apply -f ./zta/deployment/opa.yaml'
                     sh 'kubectl apply -f ./zta/deployment/opa-service.yaml'
+
                     sh 'kubectl apply -f ./zta/deployment/falco-deployment.yaml'
                     sh 'kubectl apply -f ./zta/deployment/falco-service.yaml'
-
+                    
+                    //sh 'helm upgrade --install zta ./zta/helm --namespace default'
                     sh "helm upgrade --install ${CHART_NAME} ./zta/helm/ --namespace ${KUBE_NAMESPACE}"
                 }
             }
         }
 
-        stage('Expose Service & Verify Deployment') {
+        stage('Verify Deployment') {
             steps {
                 script {
                     sh "kubectl get pods -n ${KUBE_NAMESPACE}"
                     sh "kubectl get svc -n ${KUBE_NAMESPACE}"
-
-                    // Ensure app is exposed externally via NodePort
-                    def minikubeIP = sh(script: "minikube ip", returnStdout: true).trim()
-                    echo "Access your application at: http://${minikubeIP}:30000/"
-                }
-            }
-        }
-        
-        stage('Port Forwarding') {
-            steps {
-                script {
-                    sh "kubectl port-forward svc/zta-service 30000:80 -n ${KUBE_NAMESPACE} &"
-                    sh "kubectl port-forward svc/prometheus 9090:9090 -n ${KUBE_NAMESPACE} &"
-                    sh "kubectl port-forward svc/grafana 3000:3000 -n ${KUBE_NAMESPACE} &"
                 }
             }
         }
