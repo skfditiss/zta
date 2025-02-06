@@ -2,35 +2,73 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "skfditiss/zta-app"
+        IMAGE_NAME = "skfditiss/zta"
         IMAGE_TAG = "latest"
         KUBE_NAMESPACE = "default"
-        CHART_NAME = "zta-app"
+        CHART_NAME = "zta"
+        SONARQUBE_URL = "http://localhost:9000"
+        PROMETHEUS_URL = "http://localhost:9090"
+        GRAFANA_URL = "http://localhost:3000"
+        GITHUB_CREDENTIALS_ID = "github"  // GitHub credentials ID
+        SONAR_SCANNER_HOME = '/opt/sonar-scanner'  // Path to the SonarQube Scanner installation
+        PATH = "${SONAR_SCANNER_HOME}/bin:${env.PATH}"  // Add sonar-scanner to PATH
+        SONAR_TOKEN = "squ_0520eea0a041ee90b18e77560d944458471278c0"
     }
 
-    
-
-
     stages {
-
-        stage('SonarQube Scan') {
-             steps {
-                withSonarQubeEnv('sonarqube-server') { // Configure SonarQube in Jenkins under "Manage Jenkins" → "Global Tool Configuration"
-                sh 'sonar-scanner -Dsonar.projectKey=zta-app -Dsonar.sources=. -Dsonar.host.url=http://sonarqube:9000'
-            }
+        stage('Clone Repository') {
+            steps {
+                script {
+                    cleanWs()
+                    withCredentials([usernamePassword(credentialsId: GITHUB_CREDENTIALS_ID, usernameVariable: 'GITHUB_USER', passwordVariable: 'GITHUB_TOKEN')]) {
+                        sh 'git config --global credential.helper store'
+                        sh 'echo "https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com" > ~/.git-credentials'
+                        sh 'git clone https://github.com/skfditiss/zta.git'
+                        sh 'cd zta && git checkout main && git pull origin main'
+                    }
+                }
             }
         }
 
-        stage('Clone Repository') {
+        stage('Verify File Existence') {
             steps {
-                checkout scm
+                script {
+                    // Verify the content of the 'deployment' directory inside 'zta'
+                    sh 'ls -R ./zta/deployment'
+                    // Check the content of the 'sonarqube.yaml'
+                    sh 'cat ./zta/deployment/sonarqube.yaml'
+                }
+            }
+        }
+
+        stage('Start Minikube') {
+            steps {
+                script {
+                    sh 'minikube start --driver=docker'
+                    sh 'kubectl config use-context minikube'
+                }
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 script {
-                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} -f zta/Dockerfile ."
+                }
+            }
+        }
+
+        stage('SonarQube Scan') {
+            steps {
+                script {
+                    // Apply the SonarQube YAML file with the correct path
+                    sh 'kubectl apply -f ./zta/deployment/sonarqube.yaml'
+                    sh 'kubectl apply -f ./zta/deployment/sonarqube-service.yaml'
+
+                    withSonarQubeEnv('sonar') {
+                        //sh "sonar-scanner -Dsonar.projectKey=zta-app -Dsonar.sources=. -Dsonar.host.url=${SONARQUBE_URL}"
+                        sh "sonar-scanner -Dsonar.projectKey=zta -Dsonar.sources=. -Dsonar.host.url=${SONARQUBE_URL} -Dsonar.login=${SONAR_TOKEN}"
+                    }
                 }
             }
         }
@@ -43,10 +81,9 @@ pipeline {
             }
         }
 
-        
-        stage('Push to DockerHub') {
+        stage('Push Docker Image to DockerHub') {
             steps {
-                withDockerRegistry([credentialsId: 'dockerhub', url: '']) {
+                withDockerRegistry([credentialsId: 'dockerhub_idpass', url: 'https://index.docker.io/v1/']) {
                     sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
                 }
             }
@@ -55,7 +92,22 @@ pipeline {
         stage('Deploy to Kubernetes with Helm') {
             steps {
                 script {
-                    sh "helm upgrade --install ${CHART_NAME} helm/ --namespace ${KUBE_NAMESPACE}"
+                    // Apply all the Kubernetes YAML files with the correct path
+                    sh 'kubectl apply -f ./zta/deployment/prometheus-deployment.yaml'
+                    sh 'kubectl apply -f ./zta/deployment/prometheus-service.yaml'
+                    sh 'kubectl apply -f ./zta/deployment/prometheus-config.yaml'
+                    sh 'kubectl apply -f ./zta/deployment/grafana-deployment.yaml'
+                    sh 'kubectl apply -f ./zta/deployment/grafana-service.yaml'
+                    sh 'kubectl apply -f ./zta/deployment/grafana-datasource.yaml'
+
+                    sh 'kubectl apply -f ./zta/deployment/opa.yaml'
+                    sh 'kubectl apply -f ./zta/deployment/opa-service.yaml'
+
+                    sh 'kubectl apply -f ./zta/deployment/falco-deployment.yaml'
+                    sh 'kubectl apply -f ./zta/deployment/falco-service.yaml'
+                    
+                    //sh 'helm upgrade --install zta ./zta/helm --namespace default'
+                    sh "helm upgrade --install ${CHART_NAME} ./zta/helm/ --namespace ${KUBE_NAMESPACE}"
                 }
             }
         }
@@ -67,6 +119,30 @@ pipeline {
                     sh "kubectl get svc -n ${KUBE_NAMESPACE}"
                 }
             }
+        }
+
+        stage('Check Logs & Metrics') {
+            steps {
+                script {
+                    sh "kubectl port-forward svc/prometheus 9090:9090 --namespace=${KUBE_NAMESPACE} &"
+                    sh "curl ${PROMETHEUS_URL}/api/v1/query?query=up"
+                    
+                    sh "kubectl port-forward svc/grafana 3000:3000 --namespace=${KUBE_NAMESPACE} &"
+                    sh "curl ${GRAFANA_URL}/api/datasources/proxy/1/api/v1/query?query=up"
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Pipeline execution completed.'
+        }
+        success {
+            echo 'Pipeline succeeded!'
+        }
+        failure {
+            echo 'Pipeline failed!'
         }
     }
 }
