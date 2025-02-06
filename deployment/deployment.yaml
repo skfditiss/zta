@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zta
+  labels:
+    app: zta
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: zta
+  template:
+    metadata:
+      labels:
+        app: zta
+    spec:
+      containers:
+      - name: zta-container
+        image: skfditiss/zta:latest # Replace with your actual image
+        ports:
+        - containerPort: 5000
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+        env:
+        - name: FLASK_ENV
+          value: "production"

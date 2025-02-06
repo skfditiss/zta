@@ -1,0 +1,19 @@
+replicaCount: 5
+
+image:
+  repository: skfditiss/zta # Replace with your actual DockerHub username
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: LoadBalancer
+  port: 80
+  targetPort: 5000
+
+resources:
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+  requests:
+    cpu: "250m"
+    memory: "256Mi"
