@@ -100,7 +100,7 @@ pipeline {
                 script {
                         sh '''
                         trivy image --format prometheus ${IMAGE_NAME}:${IMAGE_TAG} > trivy-metrics.prom
-                        curl -X POST --data-binary @trivy-metrics.prom http://<PROMETHEUS-IP>:9091/metrics/job/trivy
+                        curl -X POST --data-binary @trivy-metrics.prom http://localhost:32090/metrics/job/trivy
                         '''
                     }
                 }

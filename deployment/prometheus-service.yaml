@@ -9,4 +9,5 @@ spec:
   - protocol: TCP
     port: 9090
     targetPort: 9090
-  type: LoadBalancer
+   nodePort: 32090  # Set a NodePort (e.g., 32090)
+  type: NodePort  # Changed from LoadBalancer to NodePort
