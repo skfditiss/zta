@@ -7,6 +7,9 @@ data:
     global:
       scrape_interval: 15s
     scrape_configs:
+      - job_name: 'trivy_scan'
+        static_configs:
+          - targets: ['pushgateway:9091']
       - job_name: 'flask-app'
         static_configs:
           - targets: ['zta-service:5000']

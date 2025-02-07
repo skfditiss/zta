@@ -95,16 +95,33 @@ pipeline {
         //         }
         //     }
         // }
+        // stage('Trivy Security Scan') {
+        //     steps {
+        //         script {
+        //                 sh '''
+        //                 trivy image --format prometheus ${IMAGE_NAME}:${IMAGE_TAG} > trivy-metrics.prom
+        //                 curl -X POST --data-binary @trivy-metrics.prom http://localhost:32090/metrics/job/trivy
+        //                 '''
+        //             }
+        //         }
+        //     }
+
         stage('Trivy Security Scan') {
             steps {
-                script {
-                        sh '''
-                        trivy image --format prometheus ${IMAGE_NAME}:${IMAGE_TAG} > trivy-metrics.prom
-                        curl -X POST --data-binary @trivy-metrics.prom http://localhost:32090/metrics/job/trivy
-                        '''
-                    }
-                }
+             script {
+                sh '''
+                # Run Trivy scan and save output in JSON format
+                trivy image --format json ${IMAGE_NAME}:${IMAGE_TAG} > ./zta/trivy-results.json
+
+               # Convert JSON to Prometheus format (custom script)
+               python3 ./zta/trivy_to_prometheus.py ./zta/trivy-results.json ./zta/trivy-metrics.prom
+
+              # Send the metrics to Prometheus Pushgateway
+             curl -X POST --data-binary @./zta/trivy-metrics.prom http://localhost:32090/metrics/job/trivy
+                '''
             }
+        }
+    }
         stage('Push Docker Image to DockerHub') {
             steps {
                 withDockerRegistry([credentialsId: 'dockerhub_idpass', url: 'https://index.docker.io/v1/']) {
@@ -147,6 +164,7 @@ stage('Deploy to Kubernetes with Helm') {
                     sh 'kubectl apply -f ./zta/deployment/opa-service.yaml'
                     sh 'kubectl apply -f ./zta/deployment/falco-deployment.yaml'
                     sh 'kubectl apply -f ./zta/deployment/falco-service.yaml'
+                    sh 'kubectl apply -f ./zta/deployment/pushgateway.yaml'
 
             // Delete existing service to avoid conflicts
             sh 'kubectl delete svc zta-service -n default || true'
