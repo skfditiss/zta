@@ -3,13 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZTA Flask App</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <title>Zero Trust Flask App with Video Background</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <div class="container">
+    <!-- Video Player with Background -->
+    <div class="video-container">
+        <video autoplay muted loop id="bg-video">
+            <source src="{{ url_for('static', filename='video.mp4') }}" type="video/mp4">
+        </video>
+    </div>
+
+    <div class="content">
         <h1>Zero Trust Flask App</h1>
         <p>Log Entry: {{ log_data }}</p>
+        <p>This is a demonstration of using Flask with a video player background, GIF overlay, and logging functionality.</p>
+        <div class="log-data">
+            <h3>Random Number Log:</h3>
+            <p>{{ log_data }}</p>
+        </div>
     </div>
 </body>
 </html>
+
