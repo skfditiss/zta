@@ -9,7 +9,7 @@ pipeline {
         SONARQUBE_URL = "http://localhost:9000"
         PROMETHEUS_URL = "http://localhost:9090"
         GRAFANA_URL = "http://localhost:3000"
-        PUSHGATEWAY_URL = "http://$(minikube ip):9091"
+        //PUSHGATEWAY_URL = ""
         GITHUB_CREDENTIALS_ID = "github"  // GitHub credentials ID
         SONAR_SCANNER_HOME = '/opt/sonar-scanner'  // Path to SonarQube Scanner
         PATH = "${SONAR_SCANNER_HOME}/bin:${env.PATH}"  // Add sonar-scanner to PATH
@@ -45,7 +45,7 @@ pipeline {
                 script {
                     // Check if Minikube is running
                     def minikubeStatus = sh(script: "minikube status | grep 'host: Running' || echo 'stopped'", returnStdout: true).trim()
-
+                    
                     if (minikubeStatus == 'stopped') {
                         echo "Starting Minikube..."
                         //sh 'minikube start --driver=docker --memory=8000mb --cpus=3 --disk-size=20g'
