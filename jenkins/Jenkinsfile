@@ -47,7 +47,12 @@ pipeline {
 
                     if (minikubeStatus == 'stopped') {
                         echo "Starting Minikube..."
-                        sh 'minikube start --driver=docker --memory=8000mb --cpus=3 --disk-size=20g'
+                        //sh 'minikube start --driver=docker --memory=8000mb --cpus=3 --disk-size=20g'
+                        sh '''
+                                export MINIKUBE_HOME=$HOME/.minikube
+                                export KUBECONFIG=$HOME/.kube/config
+                                sudo minikube start --driver=none --memory=8000mb --cpus=3 --force
+                        '''
                     } else {
                         echo "Minikube is already running."
                     }
@@ -99,11 +104,31 @@ pipeline {
             }
         }
 
-        stage('Deploy to Kubernetes with Helm') {
-            steps {
-                script {
-                    sh 'kubectl apply -f ./zta/deployment/zta-service.yaml'
-                    sh 'kubectl apply -f ./zta/deployment/prometheus-deployment.yaml'
+        // stage('Deploy to Kubernetes with Helm') {
+        //     steps {
+        //         script {
+        //             sh 'kubectl apply -f ./zta/deployment/zta-service.yaml'
+        //             sh 'kubectl apply -f ./zta/deployment/prometheus-deployment.yaml'
+        //             sh 'kubectl apply -f ./zta/deployment/prometheus-service.yaml'
+        //             sh 'kubectl apply -f ./zta/deployment/prometheus-config.yaml'
+        //             sh 'kubectl apply -f ./zta/deployment/grafana-deployment.yaml'
+        //             sh 'kubectl apply -f ./zta/deployment/grafana-service.yaml'
+        //             sh 'kubectl apply -f ./zta/deployment/grafana-datasource.yaml'
+        //             sh 'kubectl apply -f ./zta/deployment/opa.yaml'
+        //             sh 'kubectl apply -f ./zta/deployment/opa-service.yaml'
+        //             sh 'kubectl apply -f ./zta/deployment/falco-deployment.yaml'
+        //             sh 'kubectl apply -f ./zta/deployment/falco-service.yaml'
+
+        //             sh "helm upgrade --install ${CHART_NAME} ./zta/helm/ --namespace ${KUBE_NAMESPACE}"
+        //         }
+        //     }
+        // }
+stage('Deploy to Kubernetes with Helm') {
+    steps {
+        script {
+            // Ensure Minikube is running
+            //sh 'minikube start --driver=docker --memory=8000mb --cpus=3 --force'
+            sh 'kubectl apply -f ./zta/deployment/prometheus-deployment.yaml'
                     sh 'kubectl apply -f ./zta/deployment/prometheus-service.yaml'
                     sh 'kubectl apply -f ./zta/deployment/prometheus-config.yaml'
                     sh 'kubectl apply -f ./zta/deployment/grafana-deployment.yaml'
@@ -114,10 +139,16 @@ pipeline {
                     sh 'kubectl apply -f ./zta/deployment/falco-deployment.yaml'
                     sh 'kubectl apply -f ./zta/deployment/falco-service.yaml'
 
-                    sh "helm upgrade --install ${CHART_NAME} ./zta/helm/ --namespace ${KUBE_NAMESPACE}"
-                }
-            }
+            // Delete existing service to avoid conflicts
+            sh 'kubectl delete svc zta-service -n default || true'
+
+            // Apply Helm chart
+            sh "helm upgrade --install ${CHART_NAME} ./zta/helm/ --namespace ${KUBE_NAMESPACE}"
         }
+    }
+}
+
+        
 
         stage('Expose Service & Verify Deployment') {
             steps {
